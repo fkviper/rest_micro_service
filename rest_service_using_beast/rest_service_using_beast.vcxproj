@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\common.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\http_connection.h" />
     <ClInclude Include="include\http_server.h" />

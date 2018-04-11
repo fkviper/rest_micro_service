@@ -12,17 +12,7 @@
 #include "stdafx.h"
 #include "config.h"
 #include "http_connection.h"
-// "Loop" forever accepting new connections.
-void http_server_func(tcp::acceptor& acceptor, tcp::socket& socket)
-{
-	acceptor.async_accept(socket,
-		[&](boost::beast::error_code ec)
-	{
-		if (!ec)
-			std::make_shared<http_connection>(std::move(socket))->start();
-		http_server_func(acceptor, socket);
-	});
-}
+
 
 class http_server {
 public:
@@ -45,7 +35,7 @@ public:
 		if (!acceptor_)
 			acceptor_ = std::unique_ptr<tcp::acceptor>(new tcp::acceptor(*io_service_));
 
-		socket_ = std::unique_ptr<tcp::socket>(new tcp::socket(*io_service_));	//new tcp::socket(io_service_);
+		socket_ = std::unique_ptr<tcp::socket>(new tcp::socket(*io_service_));
 		acceptor_->open(endpoint.protocol());
 		acceptor_->set_option(boost::asio::socket_base::reuse_address(config_.reuse_address_));
 		acceptor_->bind(endpoint);
@@ -55,18 +45,31 @@ public:
 	}
 	config config_;
 private:
+	// "Loop" forever accepting new connections.
 	void start_listen() {
 		acceptor_->async_accept(*socket_,
 			[&](boost::beast::error_code ec)
 		{
 			if (!ec)
-				std::make_shared<http_connection>(std::move(*socket_))->start();
+				std::make_shared<http_connection>(std::move(*socket_), resources_, resources_specialized_)->start();
 			start_listen();
 		});
 	}
 	std::unique_ptr<tcp::acceptor> acceptor_;
 	std::shared_ptr<boost::asio::io_service> io_service_;
 	std::unique_ptr<tcp::socket> socket_;
+	//URI Routing Changes
+public:
+	void set_handler(std::string uri_regex, boost::beast::http::verb method, handler_f_ func) {
+		resources_[uri_regex][method] = func;
+	}
+
+	void set_handler(std::string& uri_regex, boost::beast::http::verb& method, handler_f_special& func) {
+		resources_specialized_[uri_regex][method] = func;
+	}
+private:
+	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>> resources_;
+	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_special>> resources_specialized_;
 };
 
 

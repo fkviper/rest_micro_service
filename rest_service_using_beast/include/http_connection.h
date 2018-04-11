@@ -3,8 +3,12 @@
 class http_connection : public std::enable_shared_from_this<http_connection>
 {
 public:
-	http_connection(tcp::socket socket)
-		: socket_(std::move(socket))
+	http_connection(tcp::socket socket,
+		std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>>& resources,
+		std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_special>>& resources_s)
+		: socket_(std::move(socket)),
+		resources_(resources),
+		resources_s_(resources_s)
 	{
 	}
 
@@ -17,6 +21,12 @@ public:
 	}
 
 private:
+	//All resource uri/endpoints
+	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>>& resources_;
+
+	//All special endpoints search,sorting,filters
+	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_special>>& resources_s_;
+
 	// The socket for the currently connected client.
 	tcp::socket socket_;
 
@@ -87,20 +97,21 @@ private:
 	{
 		response_.set(http::field::content_type, "application/json;charset=UTF-8");
 		response_.set(http::field::content_language, "es");
-		if (request_.target() == "/count")
-		{
-			//std::wstring str = L" {\"name\" : \"El hardware inalámbrico no autorizado se\"}";
-			//boost::beast::ostream(response_.body()) << utility::conversions::to_utf8string(str);
-			//std::wstring str2 = utility::conversions::to_string_t(utility::conversions::to_utf8string(str));
-
-			std::string str = "Hello World";
-			boost::beast::ostream(response_.body()) << str;
+		bool found = false;
+		for (auto &regex_method : resources_) {
+			auto it = regex_method.second.find(request_.method());
+			if (it != regex_method.second.end())
+			{
+				std::smatch sm_res;
+				std::string target_uri = request_.target().to_string();
+				if (std::regex_match(target_uri, sm_res, regex_method.first)) {
+					handler_f_ callable_func = it->second;
+					callable_func(response_, request_);
+					found = true;
+				}
+			}
 		}
-		else if (request_.target() == "/time")
-		{
-
-		}
-		else
+		if (!found)
 		{
 			response_.result(http::status::not_found);
 			response_.set(http::field::content_type, "text/json");

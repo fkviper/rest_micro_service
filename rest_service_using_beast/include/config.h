@@ -17,4 +17,6 @@ public:
 	std::string address_;
 	/// Set to false to avoid binding the socket to an address that is already in use. Defaults to true.
 	bool reuse_address_ = true;
+	//set server to be sync or async.
+	unsigned short is_sync_;
 };

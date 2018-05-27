@@ -13,7 +13,10 @@
 #include "config.h"
 #include "http_connection.h"
 
-
+//http - 80
+//https - 443
+//proxy -8080
+//port > 2000
 class http_server {
 public:
 	http_server(unsigned int port = 80):config_(port){}
@@ -47,13 +50,28 @@ public:
 private:
 	// "Loop" forever accepting new connections.
 	void start_listen() {
-		acceptor_->async_accept(*socket_,
-			[&](boost::beast::error_code ec)
+
+		if (config_.is_sync_)
 		{
-			if (!ec)
-				std::make_shared<http_connection>(std::move(*socket_), resources_, resources_specialized_)->start();
-			start_listen();
-		});
+			for (;;)
+			{
+				acceptor_->accept(*socket_);
+				handle_connection();
+			}
+		}
+		else
+		{
+			acceptor_->async_accept(*socket_,
+				[&](boost::beast::error_code ec)
+			{
+				if (!ec)
+					std::make_shared<http_connection>(std::move(*socket_), config_.is_sync_,resources_, resources_specialized_)->start();
+				start_listen();
+			});
+		}	
+	}
+	void handle_connection() {
+		std::make_shared<http_connection>(std::move(*socket_), config_.is_sync_, resources_, resources_specialized_)->start();
 	}
 	std::unique_ptr<tcp::acceptor> acceptor_;
 	std::shared_ptr<boost::asio::io_service> io_service_;
@@ -62,6 +80,10 @@ private:
 public:
 	void set_handler(std::string uri_regex, boost::beast::http::verb method, handler_f_ func) {
 		resources_[uri_regex][method] = func;
+	}
+
+	void set_get_handler(std::string uri_regex, handler_f_ func) {
+		resources_[uri_regex][boost::beast::http::verb::get] = func;
 	}
 
 	void set_handler(std::string& uri_regex, boost::beast::http::verb& method, handler_f_special& func) {

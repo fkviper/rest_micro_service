@@ -3,10 +3,11 @@
 class http_connection : public std::enable_shared_from_this<http_connection>
 {
 public:
-	http_connection(tcp::socket socket,
+	http_connection(tcp::socket socket,bool is_sync,
 		std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>>& resources,
 		std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_special>>& resources_s)
 		: socket_(std::move(socket)),
+		is_sync_(is_sync),
 		resources_(resources),
 		resources_s_(resources_s)
 	{
@@ -21,6 +22,7 @@ public:
 	}
 
 private:
+	bool is_sync_;
 	//All resource uri/endpoints
 	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>>& resources_;
 
@@ -48,18 +50,27 @@ private:
 		read_request()
 	{
 		auto self = shared_from_this();
-
-		http::async_read(
-			socket_,
-			buffer_,
-			request_,
-			[self](boost::beast::error_code ec,
-				std::size_t bytes_transferred)
+		if (is_sync_)
 		{
+			boost::system::error_code ec;
+			std::size_t bytes_transferred = http::read(socket_, buffer_, request_, ec);
 			boost::ignore_unused(bytes_transferred);
 			if (!ec)
 				self->process_request();
-		});
+		}
+		else {
+			http::async_read(
+				socket_,
+				buffer_,
+				request_,
+				[self](boost::beast::error_code ec,
+					std::size_t bytes_transferred)
+			{
+				boost::ignore_unused(bytes_transferred);
+				if (!ec)
+					self->process_request();
+			});
+		}
 	}
 
 	// Determine what needs to be done with the request message.
@@ -126,15 +137,24 @@ private:
 		auto self = shared_from_this();
 
 		response_.set(http::field::content_length, response_.body().size());
-
-		http::async_write(
-			socket_,
-			response_,
-			[self](boost::beast::error_code ec, std::size_t)
+		if (is_sync_)
 		{
-			self->socket_.shutdown(tcp::socket::shutdown_send, ec);
-			self->deadline_.cancel();
-		});
+			boost::beast::error_code ec;
+			http::write(socket_, response_, ec);
+			if (!ec)
+				self->socket_.shutdown(tcp::socket::shutdown_send, ec);
+		}
+		else
+		{
+			http::async_write(
+				socket_,
+				response_,
+				[self](boost::beast::error_code ec, std::size_t)
+			{
+				self->socket_.shutdown(tcp::socket::shutdown_send, ec);
+				self->deadline_.cancel();
+			});
+		}
 	}
 
 	// Check whether we have spent enough time on this connection.

@@ -4,13 +4,24 @@ class http_connection : public std::enable_shared_from_this<http_connection>
 {
 public:
 	http_connection(tcp::socket socket,bool is_sync,
-		std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>>& resources,
-		std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_special>>& resources_s)
+		std::shared_ptr<resource> uri_resource)
 		: socket_(std::move(socket)),
 		is_sync_(is_sync),
-		resources_(resources),
-		resources_s_(resources_s)
+		uri_handlers_(uri_resource)
 	{
+		std::cout << "----------------------------------------------------------CONNECTION STARTS------------------------------------------------------" << std::endl;
+	}
+
+	~http_connection() {
+		
+		std::cout << "REQUEST :\n "<< 
+			"METHOD :" << request_.method_string().to_string() <<"\n"<<
+			"TARGET :" << request_.target().to_string()<<"\n"<<
+			"DATA :" << boost::beast::buffers_to_string(request_.body().data()) << std::endl;
+		std::cout << "REPONSE : \n "<< 
+			"RESULT :" << response_.result_int() << "\n" << 
+			"DATA :" << boost::beast::buffers_to_string(response_.body().data()) << std::endl;
+		std::cout << "-----------------------------------------------------------CONNECTION ENDS-------------------------------------------------------" << std::endl;
 	}
 
 	// Initiate the asynchronous operations associated with the connection.
@@ -18,16 +29,19 @@ public:
 		start()
 	{
 		read_request();
-		check_deadline();
+		if (is_sync_ == false)
+			check_deadline();
+		else
+		{
+			auto self = shared_from_this();
+			self->deadline_.cancel();
+		}
 	}
 
 private:
 	bool is_sync_;
-	//All resource uri/endpoints
-	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>>& resources_;
-
-	//All special endpoints search,sorting,filters
-	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_special>>& resources_s_;
+	
+	std::shared_ptr<resource> uri_handlers_;
 
 	// The socket for the currently connected client.
 	tcp::socket socket_;
@@ -57,6 +71,8 @@ private:
 			boost::ignore_unused(bytes_transferred);
 			if (!ec)
 				self->process_request();
+			else
+				self->socket_.close(ec);
 		}
 		else {
 			http::async_read(
@@ -84,32 +100,36 @@ private:
 		{
 		case http::verb::get:
 			response_.result(http::status::ok);
+			response_.set(http::field::server,"Beast");
+			create_response(uri_handlers_->get_relative_uri_map_);
+			break;
+		case http::verb::post:
+			response_.result(http::status::created);
 			response_.set(http::field::server, "Beast");
-			create_response();
+			create_response(uri_handlers_->post_relative_uri_map_);
 			break;
 		default:
 			// We return responses indicating an error if
 			// we do not recognize the request method.
 			response_.result(http::status::bad_request);
-			response_.set(http::field::content_type, "text/plain");
+			response_.set(http::field::content_type,"text/plain");
 			boost::beast::ostream(response_.body())
 				<< "Invalid request-method '"
 				<< request_.method_string().to_string()
 				<< "'";
 			break;
 		}
-
 		write_response();
 	}
 
 	// Construct a response message based on the program state.
 	void
-		create_response()
+		create_response(std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>>& resources)
 	{
 		response_.set(http::field::content_type, "application/json;charset=UTF-8");
-		response_.set(http::field::content_language, "es");
+		//response_.set(http::field::content_language, "es");
 		bool found = false;
-		for (auto &regex_method : resources_) {
+		for (auto &regex_method : resources) {
 			auto it = regex_method.second.find(request_.method());
 			if (it != regex_method.second.end())
 			{
@@ -130,6 +150,8 @@ private:
 		}
 	}
 
+
+
 	// Asynchronously transmit the response message.
 	void
 		write_response()
@@ -142,7 +164,9 @@ private:
 			boost::beast::error_code ec;
 			http::write(socket_, response_, ec);
 			if (!ec)
+			{
 				self->socket_.shutdown(tcp::socket::shutdown_send, ec);
+			}
 		}
 		else
 		{
@@ -162,15 +186,14 @@ private:
 		check_deadline()
 	{
 		auto self = shared_from_this();
-
 		deadline_.async_wait(
-			[self](boost::beast::error_code ec)
-		{
-			if (!ec)
+				[self](boost::beast::error_code ec)
 			{
-				// Close socket to cancel any outstanding operation.
-				self->socket_.close(ec);
-			}
-		});
+				if (!ec)
+				{
+					// Close socket to cancel any outstanding operation.
+					self->socket_.close(ec);
+				}
+			});
 	}
 };

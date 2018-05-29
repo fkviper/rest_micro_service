@@ -29,3 +29,17 @@ public:
 };
 
 
+class resource {
+public:
+	void add_get_handler(std::string uri_regex, handler_f_ func) {
+		get_relative_uri_map_[uri_regex][boost::beast::http::verb::get] = func;
+	}
+
+	void add_post_handler(std::string uri_regex, handler_f_ func) {
+		post_relative_uri_map_[uri_regex][boost::beast::http::verb::post] = func;
+	}
+	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>> get_relative_uri_map_;
+	std::map<regex_orderable, std::map<boost::beast::http::verb, handler_f_>> post_relative_uri_map_;
+};
+
+

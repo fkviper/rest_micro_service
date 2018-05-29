@@ -42,8 +42,8 @@ int main(int argc, char* argv[])
 		server.config_.is_sync_ = true;
 
 		std::shared_ptr<resource> uri_endpoints(new resource);
-		uri_endpoints->add_get_handler(std::string("^/project/[0-9]+/tasks"), std::bind(get_all_task_in_project, 				std::placeholders::_1, std::placeholders::_2));
-		uri_endpoints->add_post_handler(std::string("^/github/comment"), std::bind(post_github_comment_handle, 					std::placeholders::_1, std::placeholders::_2));
+		uri_endpoints->add_get_handler(std::string("^/project/[0-9]+/tasks"), std::bind(get_all_task_in_project, std::placeholders::_1, std::placeholders::_2));
+		uri_endpoints->add_post_handler(std::string("^/github/comment"), std::bind(post_github_comment_handle, std::placeholders::_1, std::placeholders::_2));
 
 		server.publish(uri_endpoints);
 		server.start();

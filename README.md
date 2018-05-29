@@ -1,4 +1,4 @@
-# c++ rest_service using beast,asio and rapid json
+# c++ REST Service using beast,asio and rapid json
 
 Dependecies:
 1. Boost(asio,system,regex,datetime)

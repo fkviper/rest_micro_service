@@ -25,13 +25,13 @@ void get_all_task_in_project(http::response<http::dynamic_body>& res, http::requ
 	boost::beast::ostream(res.body()) << str;
 }
 
-//project/{project_id}/task/{task_id}
-void get_task_in_project(http::response<http::dynamic_body>& res, http::request<http::dynamic_body>& req)
+//POST : github/comment
+void post_github_comment_handle(http::response<http::dynamic_body>& res, http::request<http::dynamic_body>& req)
 {
-	std::string str = "Hello " + req.target().to_string();
-	boost::beast::ostream(res.body()) << str;
-	res.result(http::status::ok);
+	std::cout << boost::beast::buffers_to_string(req.body().data()) << std::endl;
+	res.result(http::status::created);
 }
+
 int main(int argc, char* argv[])
 {
 	try

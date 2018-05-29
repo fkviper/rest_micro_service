@@ -19,6 +19,13 @@ Hello World Example:
 #include "stdafx.h"
 #include "http_server.h"
 
+//GET :project/{project_id}/tasks
+void get_all_task_in_project(http::response<http::dynamic_body>& res, http::request<http::dynamic_body>& req)
+{
+	std::string str = " { \"get_uri\" : \"" + req.target().to_string() + "\"}";
+	boost::beast::ostream(res.body()) << str;
+}
+
 //project/{project_id}/task/{task_id}
 void get_task_in_project(http::response<http::dynamic_body>& res, http::request<http::dynamic_body>& req)
 {
@@ -26,15 +33,6 @@ void get_task_in_project(http::response<http::dynamic_body>& res, http::request<
 	boost::beast::ostream(res.body()) << str;
 	res.result(http::status::ok);
 }
-//project/{project_id}/tasks
-void get_all_task_in_project(http::response<http::dynamic_body>& res, http::request<http::dynamic_body>& req)
-{
-	std::string str = "Hello " + req.target().to_string();
-	boost::beast::ostream(res.body()) << str;
-	res.result(http::status::ok);
-}
-
-
 int main(int argc, char* argv[])
 {
 	try
@@ -43,9 +41,11 @@ int main(int argc, char* argv[])
 		server.config_.port_ = 8080;
 		server.config_.is_sync_ = true;
 
-		server.set_get_handler(std::string("^/project/[0-9]+/tasks"), std::bind(get_all_task_in_project, std::placeholders::_1, std::placeholders::_2));
-		server.set_get_handler(std::string("^/project/[0-9]+/task/[0-9]+"), std::bind(get_task_in_project, std::placeholders::_1, std::placeholders::_2));
+		std::shared_ptr<resource> uri_endpoints(new resource);
+		uri_endpoints->add_get_handler(std::string("^/project/[0-9]+/tasks"), std::bind(get_all_task_in_project, 				std::placeholders::_1, std::placeholders::_2));
+		uri_endpoints->add_post_handler(std::string("^/github/comment"), std::bind(post_github_comment_handle, 					std::placeholders::_1, std::placeholders::_2));
 
+		server.publish(uri_endpoints);
 		server.start();
 
 	}

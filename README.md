@@ -11,7 +11,6 @@ Features planned :
 2. Routing support.(implemented using regex)
 3. SSL support (pending)
 4. REST response caching(pending)
-5. Graceful termination on crash.(pending)
 
 
 Hello World Example:
